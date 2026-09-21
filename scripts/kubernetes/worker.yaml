@@ -30,8 +30,8 @@ spec:
     spec:
       containers: 
       - name: worker
-        image: {{CONTAINER_REGISTRY}}/worker:{{VERSION}}
-        imagePullPolicy: IfNotPresent
+        image: 314113909414.dkr.ecr.ap-south-1.amazonaws.com/nodejs-microservices:worker-latest
+        imagePullPolicy: Always
         env:
         - name: PORT
           value: "4000"

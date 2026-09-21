@@ -27,8 +27,8 @@ spec:
     spec:
       containers: 
       - name: gateway
-        image: {{CONTAINER_REGISTRY}}/gateway:{{VERSION}}
-        imagePullPolicy: IfNotPresent
+        image: 314113909414.dkr.ecr.ap-south-1.amazonaws.com/nodejs-microservices:gateway-latest
+        imagePullPolicy: Always
         env:
         - name: PORT
           value: "4000"

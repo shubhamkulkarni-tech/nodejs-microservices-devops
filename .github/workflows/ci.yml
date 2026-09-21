@@ -15,6 +15,7 @@ permissions:
 env:
   AWS_REGION: ap-south-1
   ECR_REPOSITORY: nodejs-microservices
+  EKS_CLUSTER: nodejs-devops-cluster
 
 jobs:
   build-test-push:
@@ -36,7 +37,10 @@ jobs:
       - name: Run tests
         run: npm test --if-present
 
-      - name: Configure AWS credentials
+      # -------------------------
+      # AWS ECR
+      # -------------------------
+      - name: Configure AWS credentials for ECR
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::314113909414:role/GitHubActions-ECR-NodeMicroservices
@@ -68,3 +72,59 @@ jobs:
         run: |
           docker push \
             ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:worker-latest
+
+      # -------------------------
+      # AWS EKS
+      # -------------------------
+      - name: Configure AWS credentials for EKS
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::314113909414:role/GitHubActions-EKS-NodeMicroservices
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup kubectl
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: azure/setup-kubectl@v4
+        with:
+          version: latest
+
+      - name: Update kubeconfig
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ env.EKS_CLUSTER }} \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Deploy MongoDB
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          kubectl apply -f scripts/kubernetes/db.yaml
+
+      - name: Deploy Worker
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          kubectl apply -f scripts/kubernetes/worker.yaml
+
+      - name: Deploy Gateway
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          kubectl apply -f scripts/kubernetes/gateway.yaml
+
+      - name: Restart Gateway and Worker
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          kubectl rollout restart deployment/gateway
+          kubectl rollout restart deployment/worker
+
+      - name: Wait for deployments
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          kubectl rollout status deployment/gateway --timeout=180s
+          kubectl rollout status deployment/worker --timeout=180s
+
+      - name: Verify deployment
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          kubectl get pods
+          kubectl get svc
